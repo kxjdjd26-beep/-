@@ -1,437 +1,977 @@
--- // ESP + AimLock v2 (Fixed)
--- // Загрузка Rayfield
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- ═══════════════════════════════════════════════════════
+-- ESP + AimLock System
+-- Roblox Executor | Rayfield GUI
+-- ═══════════════════════════════════════════════════════
 
--- // Сервисы
+-- Зависимости: Rayfield UI Library (загружается через loadstring)
+-- Executor: любой поддерживающий Drawing API + getgc + hookmetamethod
+
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local Camera = Workspace.CurrentCamera
 
--- // Настройки
-local Settings = {
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- ═══════════════════════════════════════════════════════
+-- RAYFIELD UI SETUP
+-- ═══════════════════════════════════════════════════════
+
+local Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "PEDRO | ESP + AimLock",
+    LoadingTitle = "PEDRO v4",
+    LoadingSubtitle = "Initializing systems...",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "PedroConfig",
+        FileName = "ESPAimLock"
+    },
+    KeySystem = false
+})
+
+-- ═══════════════════════════════════════════════════════
+-- CONFIGURATION
+-- ═══════════════════════════════════════════════════════
+
+local Config = {
     ESP = {
         Enabled = false,
+        Boxes = true,
+        Names = true,
+        Distance = true,
+        Health = true,
+        Tracers = false,
         TeamCheck = true,
-        Color = Color3.fromRGB(255, 0, 0),
-        Transparency = 0.5,
-        ShowDistance = true,
-        ShowName = true
+        BoxColor = Color3.fromRGB(255, 0, 0),
+        NameColor = Color3.fromRGB(255, 255, 255),
+        DistanceColor = Color3.fromRGB(200, 200, 200),
+        HealthColorLow = Color3.fromRGB(255, 0, 0),
+        HealthColorHigh = Color3.fromRGB(0, 255, 0),
+        TracerColor = Color3.fromRGB(255, 255, 255),
+        MaxDistance = 1000,
+        BoxThickness = 1,
+        TextSize = 14,
+        Font = Drawing.Fonts.UI,
+        FilledBoxes = false,
+        BoxFillTransparency = 0.5,
+        ShowTeammates = false
     },
-    Aim = {
+    AimLock = {
         Enabled = false,
+        Smoothness = 0.15, -- 0 = моментально, 1 = очень медленно
         FOV = 150,
-        Smoothness = 0.08,
-        TargetPart = "Head",
+        FOVVisible = true,
         FOVColor = Color3.fromRGB(255, 255, 255),
-        FOVThickness = 1,
-        FOVFilled = false
+        FOVFillTransparency = 0.9,
+        TeamCheck = true,
+        TargetPart = "Head", -- Head, Torso, HumanoidRootPart
+        WallCheck = false,
+        ShowTarget = true,
+        TargetColor = Color3.fromRGB(0, 255, 0),
+        Priority = "Distance", -- Distance, Health, Crosshair
+        LockKey = Enum.KeyCode.E,
+        ToggleMode = false,
+        StickToTarget = false
     }
 }
 
--- // Создание окна
-local Window = Rayfield:CreateWindow({
-    Name = "ESP + AimLock v2",
-    LoadingTitle = "Loading...",
-    LoadingSubtitle = "by Nyx",
-    Theme = "Default",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "ESP_AimLock_v2",
-        FileName = "Config"
-    },
-    KeySystem = false,
-    KeySettings = {
-        Title = "Key System",
-        Subtitle = "Key System",
-        Note = "No key required",
-        FileName = "Key",
-        SaveKey = true,
-        GrabKeyFromSite = false,
-        Key = {"Hello"}
-    }
-})
+-- ═══════════════════════════════════════════════════════
+-- UTILITY FUNCTIONS
+-- ═══════════════════════════════════════════════════════
 
--- // Вкладки
-local ESPTab = Window:CreateTab("ESP", 4483362458)
-local AimTab = Window:CreateTab("AimLock", 4483362458)
+local Utility = {}
 
--- // ========================================== ESP ==========================================
-
--- // Хранение всех Highlight
-local ESPHighlights = {}
-
--- // Функция проверки, можно ли показывать ESP
-local function canShowESP(player)
-    if player == LocalPlayer then return false end
-    if Settings.ESP.TeamCheck and player.Team == LocalPlayer.Team and player.Team ~= nil then
-        return false
-    end
-    return true
-end
-
--- // Создание Highlight для игрока
-local function addHighlight(player)
-    if ESPHighlights[player] then return end
-    if not canShowESP(player) then return end
-
+function Utility.IsPlayerAlive(player)
     local character = player.Character
-    if not character then return end
+    if not character then return false end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
 
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "ESP_Highlight"
-    highlight.FillColor = Settings.ESP.Color
-    highlight.OutlineColor = Settings.ESP.Color
-    highlight.FillTransparency = Settings.ESP.Transparency
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- всегда видно
-    highlight.Adornee = character -- привязка к персонажу
-    highlight.Parent = character
+function Utility.GetCharacterRoot(player)
+    local character = player.Character
+    if not character then return nil end
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+end
 
-    ESPHighlights[player] = highlight
+function Utility.GetTargetPart(player)
+    local character = player.Character
+    if not character then return nil end
+    return character:FindFirstChild(Config.AimLock.TargetPart)
+end
 
-    -- // BillboardGui для имени и дистанции
-    if Settings.ESP.ShowName or Settings.ESP.ShowDistance then
-        local billboard = Instance.new("BillboardGui")
-        billboard.Name = "ESP_Billboard"
-        billboard.Size = UDim2.new(0, 100, 0, 30)
-        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-        billboard.AlwaysOnTop = true
-        billboard.Adornee = character:WaitForChild("Head")
-        billboard.Parent = character
+function Utility.IsTeammate(player)
+    if not Config.ESP.TeamCheck and not Config.AimLock.TeamCheck then return false end
+    if player == LocalPlayer then return true end
+    return player.Team == LocalPlayer.Team
+end
 
-        local textLabel = Instance.new("TextLabel")
-        textLabel.Size = UDim2.new(1, 0, 1, 0)
-        textLabel.BackgroundTransparency = 1
-        textLabel.TextColor3 = Settings.ESP.Color
-        textLabel.TextStrokeTransparency = 0
-        textLabel.TextSize = 12
-        textLabel.Font = Enum.Font.SourceSansBold
-        textLabel.Parent = billboard
+function Utility.GetDistanceFromCamera(position)
+    return (position - Camera.CFrame.Position).Magnitude
+end
 
-        -- // Обновление текста
-        task.spawn(function()
-            while billboard.Parent and ESPHighlights[player] do
-                local text = ""
-                if Settings.ESP.ShowName then
-                    text = player.Name
-                end
-                if Settings.ESP.ShowDistance and character:FindFirstChild("HumanoidRootPart") then
-                    local dist = (character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                    text = text .. (text ~= "" and "\n" or "") .. "[" .. math.floor(dist) .. "m]"
-                end
-                textLabel.Text = text
-                task.wait(0.1)
-            end
-        end)
+function Utility.WorldToScreen(position)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
+    return Vector2.new(screenPos.X, screenPos.Y), onScreen, screenPos.Z
+end
+
+function Utility.GetHealthPercentage(player)
+    local character = player.Character
+    if not character then return 0 end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return 0 end
+    return humanoid.Health / humanoid.MaxHealth
+end
+
+function Utility.Get2DDistance(pointA, pointB)
+    return (pointA - pointB).Magnitude
+end
+
+function Utility.IsPointInCircle(point, circleCenter, radius)
+    return Utility.Get2DDistance(point, circleCenter) <= radius
+end
+
+function Utility.Lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+function Utility.LerpVector2(a, b, t)
+    return Vector2.new(
+        Utility.Lerp(a.X, b.X, t),
+        Utility.Lerp(a.Y, b.Y, t)
+    )
+end
+
+-- ═══════════════════════════════════════════════════════
+-- DRAWING POOL MANAGER
+-- ═══════════════════════════════════════════════════════
+
+local DrawingPool = {}
+DrawingPool.__index = DrawingPool
+
+function DrawingPool.new(maxSize)
+    local self = setmetatable({}, DrawingPool)
+    self.available = {}
+    self.inUse = {}
+    self.maxSize = maxSize or 50
+    return self
+end
+
+function DrawingPool:Acquire(drawingType)
+    local obj
+    if #self.available > 0 then
+        obj = table.remove(self.available)
+    else
+        obj = Drawing.new(drawingType)
+    end
+    obj.Visible = false
+    table.insert(self.inUse, obj)
+    return obj
+end
+
+function DrawingPool:Release(obj)
+    for i, v in ipairs(self.inUse) do
+        if v == obj then
+            table.remove(self.inUse, i)
+            obj.Visible = false
+            table.insert(self.available, obj)
+            break
+        end
     end
 end
 
--- // Удаление Highlight у игрока
-local function removeHighlight(player)
-    if ESPHighlights[player] then
-        ESPHighlights[player]:Destroy()
-        ESPHighlights[player] = nil
+function DrawingPool:ReleaseAll()
+    for _, obj in ipairs(self.inUse) do
+        obj.Visible = false
+        table.insert(self.available, obj)
     end
-    -- // Удаляем Billboard
-    if player.Character then
-        local billboard = player.Character:FindFirstChild("ESP_Billboard")
-        if billboard then billboard:Destroy() end
+    self.inUse = {}
+end
+
+function DrawingPool:Destroy()
+    for _, obj in ipairs(self.available) do
+        obj:Remove()
+    end
+    for _, obj in ipairs(self.inUse) do
+        obj:Remove()
+    end
+    self.available = {}
+    self.inUse = {}
+end
+
+-- ═══════════════════════════════════════════════════════
+-- ESP SYSTEM
+-- ═══════════════════════════════════════════════════════
+
+local ESPSystem = {}
+ESPSystem.Players = {}
+ESPSystem.Pools = {
+    Boxes = DrawingPool.new(100),
+    FilledBoxes = DrawingPool.new(100),
+    Names = DrawingPool.new(100),
+    Distances = DrawingPool.new(100),
+    HealthBars = DrawingPool.new(100),
+    HealthBarBackgrounds = DrawingPool.new(100),
+    Tracers = DrawingPool.new(100)
+}
+
+local ESPObject = {}
+ESPObject.__index = ESPObject
+
+function ESPObject.new(player)
+    local self = setmetatable({}, ESPObject)
+    self.Player = player
+    self.Drawings = {
+        Box = nil,
+        FilledBox = nil,
+        Name = nil,
+        Distance = nil,
+        HealthBar = nil,
+        HealthBarBackground = nil,
+        Tracer = nil
+    }
+    self.LastUpdate = 0
+    return self
+end
+
+function ESPObject:Init()
+    self.Drawings.Box = ESPSystem.Pools.Boxes:Acquire("Square")
+    self.Drawings.FilledBox = ESPSystem.Pools.FilledBoxes:Acquire("Square")
+    self.Drawings.Name = ESPSystem.Pools.Names:Acquire("Text")
+    self.Drawings.Distance = ESPSystem.Pools.Distances:Acquire("Text")
+    self.Drawings.HealthBar = ESPSystem.Pools.HealthBars:Acquire("Square")
+    self.Drawings.HealthBarBackground = ESPSystem.Pools.HealthBarBackgrounds:Acquire("Square")
+    self.Drawings.Tracer = ESPSystem.Pools.Tracers:Acquire("Line")
+end
+
+function ESPObject:Update()
+    if not Config.ESP.Enabled then
+        self:Hide()
+        return
+    end
+
+    if self.Player == LocalPlayer then
+        self:Hide()
+        return
+    end
+
+    if not Utility.IsPlayerAlive(self.Player) then
+        self:Hide()
+        return
+    end
+
+    if Config.ESP.TeamCheck and Utility.IsTeammate(self.Player) and not Config.ESP.ShowTeammates then
+        self:Hide()
+        return
+    end
+
+    local root = Utility.GetCharacterRoot(self.Player)
+    if not root then
+        self:Hide()
+        return
+    end
+
+    local head = self.Player.Character:FindFirstChild("Head")
+    if not head then
+        self:Hide()
+        return
+    end
+
+    local rootPos = root.Position
+    local headPos = head.Position
+    local distance = Utility.GetDistanceFromCamera(rootPos)
+
+    if distance > Config.ESP.MaxDistance then
+        self:Hide()
+        return
+    end
+
+    local rootScreen, rootOnScreen, rootDepth = Utility.WorldToScreen(rootPos)
+    local headScreen, headOnScreen, headDepth = Utility.WorldToScreen(headPos)
+
+    if not rootOnScreen or not headOnScreen then
+        self:Hide()
+        return
+    end
+
+    local boxHeight = math.abs(rootScreen.Y - headScreen.Y) * 2.5
+    local boxWidth = boxHeight * 0.6
+    local boxPosition = Vector2.new(
+        rootScreen.X - boxWidth / 2,
+        rootScreen.Y - boxHeight / 2
+    )
+
+    -- Box
+    if Config.ESP.Boxes then
+        self.Drawings.Box.Visible = true
+        self.Drawings.Box.Size = Vector2.new(boxWidth, boxHeight)
+        self.Drawings.Box.Position = boxPosition
+        self.Drawings.Box.Color = Config.ESP.BoxColor
+        self.Drawings.Box.Thickness = Config.ESP.BoxThickness
+        self.Drawings.Box.Filled = false
+        self.Drawings.Box.Transparency = 1
+        self.Drawings.Box.ZIndex = 1
+
+        if Config.ESP.FilledBoxes then
+            self.Drawings.FilledBox.Visible = true
+            self.Drawings.FilledBox.Size = Vector2.new(boxWidth, boxHeight)
+            self.Drawings.FilledBox.Position = boxPosition
+            self.Drawings.FilledBox.Color = Config.ESP.BoxColor
+            self.Drawings.FilledBox.Filled = true
+            self.Drawings.FilledBox.Transparency = Config.ESP.BoxFillTransparency
+            self.Drawings.FilledBox.ZIndex = 0
+        else
+            self.Drawings.FilledBox.Visible = false
+        end
+    else
+        self.Drawings.Box.Visible = false
+        self.Drawings.FilledBox.Visible = false
+    end
+
+    -- Name
+    if Config.ESP.Names then
+        self.Drawings.Name.Visible = true
+        self.Drawings.Name.Text = self.Player.Name
+        self.Drawings.Name.Position = Vector2.new(rootScreen.X, boxPosition.Y - 18)
+        self.Drawings.Name.Size = Config.ESP.TextSize
+        self.Drawings.Name.Color = Config.ESP.NameColor
+        self.Drawings.Name.Outline = true
+        self.Drawings.Name.OutlineColor = Color3.fromRGB(0, 0, 0)
+        self.Drawings.Name.Center = true
+        self.Drawings.Name.Font = Config.ESP.Font
+        self.Drawings.Name.ZIndex = 2
+    else
+        self.Drawings.Name.Visible = false
+    end
+
+    -- Distance
+    if Config.ESP.Distance then
+        self.Drawings.Distance.Visible = true
+        self.Drawings.Distance.Text = string.format("[%dm]", math.floor(distance))
+        self.Drawings.Distance.Position = Vector2.new(rootScreen.X, boxPosition.Y + boxHeight + 2)
+        self.Drawings.Distance.Size = Config.ESP.TextSize - 2
+        self.Drawings.Distance.Color = Config.ESP.DistanceColor
+        self.Drawings.Distance.Outline = true
+        self.Drawings.Distance.OutlineColor = Color3.fromRGB(0, 0, 0)
+        self.Drawings.Distance.Center = true
+        self.Drawings.Distance.Font = Config.ESP.Font
+        self.Drawings.Distance.ZIndex = 2
+    else
+        self.Drawings.Distance.Visible = false
+    end
+
+    -- Health Bar
+    if Config.ESP.Health then
+        local healthPercent = Utility.GetHealthPercentage(self.Player)
+        local barHeight = boxHeight
+        local barWidth = 3
+        local barPos = Vector2.new(boxPosition.X - barWidth - 2, boxPosition.Y)
+
+        self.Drawings.HealthBarBackground.Visible = true
+        self.Drawings.HealthBarBackground.Size = Vector2.new(barWidth, barHeight)
+        self.Drawings.HealthBarBackground.Position = barPos
+        self.Drawings.HealthBarBackground.Color = Color3.fromRGB(50, 50, 50)
+        self.Drawings.HealthBarBackground.Filled = true
+        self.Drawings.HealthBarBackground.ZIndex = 1
+
+        self.Drawings.HealthBar.Visible = true
+        self.Drawings.HealthBar.Size = Vector2.new(barWidth, barHeight * healthPercent)
+        self.Drawings.HealthBar.Position = Vector2.new(barPos.X, barPos.Y + barHeight * (1 - healthPercent))
+        self.Drawings.HealthBar.Color = Config.ESP.HealthColorLow:Lerp(Config.ESP.HealthColorHigh, healthPercent)
+        self.Drawings.HealthBar.Filled = true
+        self.Drawings.HealthBar.ZIndex = 2
+    else
+        self.Drawings.HealthBar.Visible = false
+        self.Drawings.HealthBarBackground.Visible = false
+    end
+
+    -- Tracer
+    if Config.ESP.Tracers then
+        local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+        self.Drawings.Tracer.Visible = true
+        self.Drawings.Tracer.From = screenCenter
+        self.Drawings.Tracer.To = rootScreen
+        self.Drawings.Tracer.Color = Config.ESP.TracerColor
+        self.Drawings.Tracer.Thickness = 1
+        self.Drawings.Tracer.Transparency = 1
+        self.Drawings.Tracer.ZIndex = 0
+    else
+        self.Drawings.Tracer.Visible = false
     end
 end
 
--- // Включение ESP
-local function enableESP()
-    for _, player in pairs(Players:GetPlayers()) do
-        addHighlight(player)
+function ESPObject:Hide()
+    for _, drawing in pairs(self.Drawings) do
+        if drawing then
+            drawing.Visible = false
+        end
+    end
+end
+
+function ESPObject:Destroy()
+    for key, drawing in pairs(self.Drawings) do
+        if drawing then
+            ESPSystem.Pools[key .. "s"]:Release(drawing)
+            self.Drawings[key] = nil
+        end
+    end
+end
+
+function ESPSystem:Init()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local espObj = ESPObject.new(player)
+            espObj:Init()
+            self.Players[player] = espObj
+        end
     end
 
-    -- // Новые игроки
     Players.PlayerAdded:Connect(function(player)
-        if Settings.ESP.Enabled then
-            player.CharacterAdded:Connect(function()
-                if Settings.ESP.Enabled then
-                    task.wait(0.5) -- ждём загрузку персонажа
-                    addHighlight(player)
-                end
-            end)
+        if player ~= LocalPlayer then
+            local espObj = ESPObject.new(player)
+            espObj:Init()
+            self.Players[player] = espObj
         end
     end)
 
-    -- // Респавн существующих
-    for _, player in pairs(Players:GetPlayers()) do
-        player.CharacterAdded:Connect(function()
-            if Settings.ESP.Enabled then
-                task.wait(0.5)
-                addHighlight(player)
+    Players.PlayerRemoving:Connect(function(player)
+        local espObj = self.Players[player]
+        if espObj then
+            espObj:Destroy()
+            self.Players[player] = nil
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if not Config.ESP.Enabled then
+            for _, espObj in pairs(self.Players) do
+                espObj:Hide()
             end
-        end)
-    end
+            return
+        end
+        for _, espObj in pairs(self.Players) do
+            espObj:Update()
+        end
+    end)
 end
 
--- // Выключение ESP
-local function disableESP()
-    for player, _ in pairs(ESPHighlights) do
-        removeHighlight(player)
-    end
-end
+-- ═══════════════════════════════════════════════════════
+-- AIMLOCK SYSTEM
+-- ═══════════════════════════════════════════════════════
 
--- // UI для ESP
-local ESPToggle = ESPTab:CreateToggle({
-    Name = "Enable ESP",
-    CurrentValue = false,
-    Flag = "ESP_Enabled",
-    Callback = function(Value)
-        Settings.ESP.Enabled = Value
-        if Value then
-            enableESP()
-        else
-            disableESP()
-        end
-    end
-})
+local AimLockSystem = {}
+AimLockSystem.CurrentTarget = nil
+AimLockSystem.IsLocked = false
+AimLockSystem.FOVCircle = nil
+AimLockSystem.TargetHighlight = nil
 
-local ESPColorPicker = ESPTab:CreateColorPicker({
-    Name = "ESP Color",
-    Color = Color3.fromRGB(255, 0, 0),
-    Flag = "ESP_Color",
-    Callback = function(Value)
-        Settings.ESP.Color = Value
-        -- // Обновляем существующие
-        for _, highlight in pairs(ESPHighlights) do
-            highlight.FillColor = Value
-            highlight.OutlineColor = Value
-        end
-    end
-})
+function AimLockSystem:Init()
+    -- FOV Circle
+    self.FOVCircle = Drawing.new("Circle")
+    self.FOVCircle.Visible = false
+    self.FOVCircle.Thickness = 1.5
+    self.FOVCircle.NumSides = 64
+    self.FOVCircle.Filled = true
+    self.FOVCircle.Transparency = Config.AimLock.FOVFillTransparency
+    self.FOVCircle.ZIndex = 0
 
-local ESPTransparencySlider = ESPTab:CreateSlider({
-    Name = "ESP Fill Transparency",
-    Range = {0, 1},
-    Increment = 0.1,
-    Suffix = "",
-    CurrentValue = 0.5,
-    Flag = "ESP_Transparency",
-    Callback = function(Value)
-        Settings.ESP.Transparency = Value
-        for _, highlight in pairs(ESPHighlights) do
-            highlight.FillTransparency = Value
-        end
-    end
-})
+    -- Target Highlight
+    self.TargetHighlight = Drawing.new("Circle")
+    self.TargetHighlight.Visible = false
+    self.TargetHighlight.Thickness = 2
+    self.TargetHighlight.NumSides = 32
+    self.TargetHighlight.Filled = false
+    self.TargetHighlight.Color = Config.AimLock.TargetColor
+    self.TargetHighlight.ZIndex = 3
 
-local ESPTeamCheckToggle = ESPTab:CreateToggle({
-    Name = "Team Check (Skip Teammates)",
-    CurrentValue = true,
-    Flag = "ESP_TeamCheck",
-    Callback = function(Value)
-        Settings.ESP.TeamCheck = Value
-    end
-})
-
-local ESPNameToggle = ESPTab:CreateToggle({
-    Name = "Show Player Name",
-    CurrentValue = true,
-    Flag = "ESP_ShowName",
-    Callback = function(Value)
-        Settings.ESP.ShowName = Value
-    end
-})
-
-local ESPDistanceToggle = ESPTab:CreateToggle({
-    Name = "Show Distance",
-    CurrentValue = true,
-    Flag = "ESP_ShowDistance",
-    Callback = function(Value)
-        Settings.ESP.ShowDistance = Value
-    end
-})
-
--- // ========================================== AIMLOCK ==========================================
-
--- // FOV Circle
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Thickness = 1
-FOVCircle.Color = Color3.fromRGB(255, 255, 255)
-FOVCircle.Filled = false
-FOVCircle.Radius = 150
-FOVCircle.NumSides = 100
-
--- // Обновление позиции FOV Circle
-RunService.RenderStepped:Connect(function()
-    local Camera = workspace.CurrentCamera
-    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-end)
-
--- // Поиск ближайшего игрока в FOV
-local function getClosestPlayer()
-    local Camera = workspace.CurrentCamera
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local closestPlayer = nil
-    local shortestDistance = Settings.Aim.FOV
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            if Settings.ESP.TeamCheck and player.Team == LocalPlayer.Team and player.Team ~= nil then
-                continue
-            end
-
-            local character = player.Character
-            if not character then continue end
-
-            local targetPart = character:FindFirstChild(Settings.Aim.TargetPart)
-            if not targetPart then continue end
-
-            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-            if onScreen then
-                local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestPlayer = player
+    -- Input handling
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Config.AimLock.LockKey then
+            if Config.AimLock.ToggleMode then
+                self.IsLocked = not self.IsLocked
+                if not self.IsLocked then
+                    self.CurrentTarget = nil
                 end
+            else
+                self.IsLocked = true
             end
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if not Config.AimLock.ToggleMode and input.KeyCode == Config.AimLock.LockKey then
+            self.IsLocked = false
+            self.CurrentTarget = nil
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        self:Update()
+    end)
+end
+
+function AimLockSystem:GetClosestPlayerToCursor()
+    local closestPlayer = nil
+    local closestScore = math.huge
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if not Utility.IsPlayerAlive(player) then continue end
+        if Config.AimLock.TeamCheck and Utility.IsTeammate(player) then continue end
+
+        local targetPart = Utility.GetTargetPart(player)
+        if not targetPart then continue end
+
+        local screenPos, onScreen, depth = Utility.WorldToScreen(targetPart.Position)
+        if not onScreen then continue end
+
+        local distance2D = Utility.Get2DDistance(screenPos, screenCenter)
+        if distance2D > Config.AimLock.FOV then continue end
+
+        if Config.AimLock.WallCheck then
+            local rayParams = RaycastParams.new()
+            rayParams.FilterDescendantsInstances = {LocalPlayer.Character, player.Character}
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            local rayResult = Workspace:Raycast(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 1000, rayParams)
+            if rayResult then continue end
+        end
+
+        local score
+        if Config.AimLock.Priority == "Distance" then
+            score = distance2D
+        elseif Config.AimLock.Priority == "Health" then
+            score = 1 - Utility.GetHealthPercentage(player)
+        elseif Config.AimLock.Priority == "Crosshair" then
+            score = distance2D
+        else
+            score = distance2D
+        end
+
+        if score < closestScore then
+            closestScore = score
+            closestPlayer = player
         end
     end
 
     return closestPlayer
 end
 
--- // Плавное наведение камеры
-local function smoothAim(targetPart)
-    local Camera = workspace.CurrentCamera
-    local cameraPosition = Camera.CFrame.Position
+function AimLockSystem:Update()
+    if not Config.AimLock.Enabled then
+        self.FOVCircle.Visible = false
+        self.TargetHighlight.Visible = false
+        return
+    end
 
-    -- // Направление к цели
-    local targetPosition = targetPart.Position
-    local direction = (targetPosition - cameraPosition).Unit
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
-    -- // Целевой CFrame
-    local targetCFrame = CFrame.new(cameraPosition, targetPosition)
+    -- Update FOV Circle
+    self.FOVCircle.Position = screenCenter
+    self.FOVCircle.Radius = Config.AimLock.FOV
+    self.FOVCircle.Visible = Config.AimLock.FOVVisible
+    self.FOVCircle.Color = Config.AimLock.FOVColor
+    self.FOVCircle.Transparency = Config.AimLock.FOVFillTransparency
 
-    -- // Плавная интерполяция
-    Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.Aim.Smoothness)
-end
-
--- // Основной цикл AimLock
-RunService.RenderStepped:Connect(function()
-    if Settings.Aim.Enabled then
-        local closest = getClosestPlayer()
-        if closest and closest.Character then
-            local targetPart = closest.Character:FindFirstChild(Settings.Aim.TargetPart)
-            if targetPart then
-                smoothAim(targetPart)
+    -- Get target
+    if self.IsLocked then
+        if Config.AimLock.StickToTarget and self.CurrentTarget then
+            if not Utility.IsPlayerAlive(self.CurrentTarget) then
+                self.CurrentTarget = nil
+            else
+                local targetPart = Utility.GetTargetPart(self.CurrentTarget)
+                if targetPart then
+                    local screenPos, onScreen = Utility.WorldToScreen(targetPart.Position)
+                    if not onScreen or Utility.Get2DDistance(screenPos, screenCenter) > Config.AimLock.FOV then
+                        self.CurrentTarget = nil
+                    end
+                else
+                    self.CurrentTarget = nil
+                end
             end
         end
-    end
-end)
 
--- // UI для AimLock
-local AimToggle = AimTab:CreateToggle({
+        if not self.CurrentTarget then
+            self.CurrentTarget = self:GetClosestPlayerToCursor()
+        end
+    else
+        self.CurrentTarget = nil
+    end
+
+    -- Aim at target
+    if self.CurrentTarget then
+        local targetPart = Utility.GetTargetPart(self.CurrentTarget)
+        if targetPart then
+            local targetScreenPos = Utility.WorldToScreen(targetPart.Position)
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+
+            if Config.AimLock.Smoothness <= 0 then
+                Camera.CFrame = targetCFrame
+            else
+                local currentLook = Camera.CFrame.LookVector
+                local targetLook = (targetPart.Position - Camera.CFrame.Position).Unit
+                local smoothFactor = 1 - Config.AimLock.Smoothness
+                local smoothedLook = currentLook:Lerp(targetLook, smoothFactor)
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + smoothedLook)
+            end
+
+            -- Target highlight
+            if Config.AimLock.ShowTarget then
+                self.TargetHighlight.Position = targetScreenPos
+                self.TargetHighlight.Radius = 8
+                self.TargetHighlight.Visible = true
+                self.TargetHighlight.Color = Config.AimLock.TargetColor
+            else
+                self.TargetHighlight.Visible = false
+            end
+        else
+            self.TargetHighlight.Visible = false
+        end
+    else
+        self.TargetHighlight.Visible = false
+    end
+end
+
+-- ═══════════════════════════════════════════════════════
+-- RAYFIELD GUI TABS
+-- ═══════════════════════════════════════════════════════
+
+local ESPTab = Window:CreateTab("ESP", "eye")
+local AimTab = Window:CreateTab("AimLock", "crosshair")
+local SettingsTab = Window:CreateTab("Settings", "settings")
+
+-- ═══════════════════════════════════════════════════════
+-- ESP TAB
+-- ═══════════════════════════════════════════════════════
+
+ESPTab:CreateToggle({
+    Name = "Enable ESP",
+    CurrentValue = false,
+    Flag = "ESP_Enabled",
+    Callback = function(Value)
+        Config.ESP.Enabled = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Boxes",
+    CurrentValue = true,
+    Flag = "ESP_Boxes",
+    Callback = function(Value)
+        Config.ESP.Boxes = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Filled Boxes",
+    CurrentValue = false,
+    Flag = "ESP_FilledBoxes",
+    Callback = function(Value)
+        Config.ESP.FilledBoxes = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Names",
+    CurrentValue = true,
+    Flag = "ESP_Names",
+    Callback = function(Value)
+        Config.ESP.Names = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Distance",
+    CurrentValue = true,
+    Flag = "ESP_Distance",
+    Callback = function(Value)
+        Config.ESP.Distance = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Health Bar",
+    CurrentValue = true,
+    Flag = "ESP_Health",
+    Callback = function(Value)
+        Config.ESP.Health = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Tracers",
+    CurrentValue = false,
+    Flag = "ESP_Tracer",
+    Callback = function(Value)
+        Config.ESP.Tracers = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Flag = "ESP_TeamCheck",
+    Callback = function(Value)
+        Config.ESP.TeamCheck = Value
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Show Teammates",
+    CurrentValue = false,
+    Flag = "ESP_ShowTeammates",
+    Callback = function(Value)
+        Config.ESP.ShowTeammates = Value
+    end
+})
+
+ESPTab:CreateSlider({
+    Name = "Max Distance",
+    Range = {100, 5000},
+    Increment = 100,
+    Suffix = "m",
+    CurrentValue = 1000,
+    Flag = "ESP_MaxDistance",
+    Callback = function(Value)
+        Config.ESP.MaxDistance = Value
+    end
+})
+
+ESPTab:CreateSlider({
+    Name = "Box Thickness",
+    Range = {1, 5},
+    Increment = 0.5,
+    Suffix = "px",
+    CurrentValue = 1,
+    Flag = "ESP_BoxThickness",
+    Callback = function(Value)
+        Config.ESP.BoxThickness = Value
+    end
+})
+
+ESPTab:CreateSlider({
+    Name = "Text Size",
+    Range = {10, 24},
+    Increment = 1,
+    Suffix = "px",
+    CurrentValue = 14,
+    Flag = "ESP_TextSize",
+    Callback = function(Value)
+        Config.ESP.TextSize = Value
+    end
+})
+
+ESPTab:CreateColorPicker({
+    Name = "Box Color",
+    Color = Config.ESP.BoxColor,
+    Flag = "ESP_BoxColor",
+    Callback = function(Value)
+        Config.ESP.BoxColor = Value
+    end
+})
+
+ESPTab:CreateColorPicker({
+    Name = "Name Color",
+    Color = Config.ESP.NameColor,
+    Flag = "ESP_NameColor",
+    Callback = function(Value)
+        Config.ESP.NameColor = Value
+    end
+})
+
+ESPTab:CreateColorPicker({
+    Name = "Tracer Color",
+    Color = Config.ESP.TracerColor,
+    Flag = "ESP_TracerColor",
+    Callback = function(Value)
+        Config.ESP.TracerColor = Value
+    end
+})
+
+-- ═══════════════════════════════════════════════════════
+-- AIMLOCK TAB
+-- ═══════════════════════════════════════════════════════
+
+AimTab:CreateToggle({
     Name = "Enable AimLock",
     CurrentValue = false,
     Flag = "Aim_Enabled",
     Callback = function(Value)
-        Settings.Aim.Enabled = Value
-        FOVCircle.Visible = Value
+        Config.AimLock.Enabled = Value
     end
 })
 
-local FOVSlider = AimTab:CreateSlider({
-    Name = "FOV Radius (pixels)",
+AimTab:CreateSlider({
+    Name = "Smoothness",
+    Range = {0, 1},
+    Increment = 0.01,
+    Suffix = "",
+    CurrentValue = 0.15,
+    Flag = "Aim_Smoothness",
+    Callback = function(Value)
+        Config.AimLock.Smoothness = Value
+    end
+})
+
+AimTab:CreateSlider({
+    Name = "FOV Size",
     Range = {50, 500},
     Increment = 10,
     Suffix = "px",
     CurrentValue = 150,
     Flag = "Aim_FOV",
     Callback = function(Value)
-        Settings.Aim.FOV = Value
-        FOVCircle.Radius = Value
+        Config.AimLock.FOV = Value
     end
 })
 
-local SmoothnessSlider = AimTab:CreateSlider({
-    Name = "Aim Smoothness",
-    Range = {0.01, 0.3},
-    Increment = 0.01,
-    Suffix = "",
-    CurrentValue = 0.08,
-    Flag = "Aim_Smoothness",
+AimTab:CreateToggle({
+    Name = "Show FOV Circle",
+    CurrentValue = true,
+    Flag = "Aim_FOVVisible",
     Callback = function(Value)
-        Settings.Aim.Smoothness = Value
+        Config.AimLock.FOVVisible = Value
     end
 })
 
-local TargetPartDropdown = AimTab:CreateDropdown({
+AimTab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Flag = "Aim_TeamCheck",
+    Callback = function(Value)
+        Config.AimLock.TeamCheck = Value
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Wall Check",
+    CurrentValue = false,
+    Flag = "Aim_WallCheck",
+    Callback = function(Value)
+        Config.AimLock.WallCheck = Value
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Show Target",
+    CurrentValue = true,
+    Flag = "Aim_ShowTarget",
+    Callback = function(Value)
+        Config.AimLock.ShowTarget = Value
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Toggle Mode",
+    CurrentValue = false,
+    Flag = "Aim_ToggleMode",
+    Callback = function(Value)
+        Config.AimLock.ToggleMode = Value
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Stick to Target",
+    CurrentValue = false,
+    Flag = "Aim_StickToTarget",
+    Callback = function(Value)
+        Config.AimLock.StickToTarget = Value
+    end
+})
+
+AimTab:CreateDropdown({
     Name = "Target Part",
-    Options = {"Head", "HumanoidRootPart", "Torso", "UpperTorso"},
+    Options = {"Head", "Torso", "HumanoidRootPart"},
     CurrentOption = "Head",
     Flag = "Aim_TargetPart",
-    Callback = function(Option)
-        Settings.Aim.TargetPart = Option
+    Callback = function(Value)
+        Config.AimLock.TargetPart = Value
     end
 })
 
-local FOVColorPicker = AimTab:CreateColorPicker({
-    Name = "FOV Circle Color",
-    Color = Color3.fromRGB(255, 255, 255),
+AimTab:CreateDropdown({
+    Name = "Priority",
+    Options = {"Distance", "Health", "Crosshair"},
+    CurrentOption = "Distance",
+    Flag = "Aim_Priority",
+    Callback = function(Value)
+        Config.AimLock.Priority = Value
+    end
+})
+
+AimTab:CreateColorPicker({
+    Name = "FOV Color",
+    Color = Config.AimLock.FOVColor,
     Flag = "Aim_FOVColor",
     Callback = function(Value)
-        Settings.Aim.FOVColor = Value
-        FOVCircle.Color = Value
+        Config.AimLock.FOVColor = Value
     end
 })
 
-local FOVThicknessSlider = AimTab:CreateSlider({
-    Name = "FOV Circle Thickness",
-    Range = {1, 5},
-    Increment = 1,
-    Suffix = "px",
-    CurrentValue = 1,
-    Flag = "Aim_FOVThickness",
+AimTab:CreateColorPicker({
+    Name = "Target Color",
+    Color = Config.AimLock.TargetColor,
+    Flag = "Aim_TargetColor",
     Callback = function(Value)
-        Settings.Aim.FOVThickness = Value
-        FOVCircle.Thickness = Value
+        Config.AimLock.TargetColor = Value
     end
 })
 
-local FOVFilledToggle = AimTab:CreateToggle({
-    Name = "FOV Circle Filled",
-    CurrentValue = false,
-    Flag = "Aim_FOVFilled",
-    Callback = function(Value)
-        Settings.Aim.FOVFilled = Value
-        FOVCircle.Filled = Value
+-- ═══════════════════════════════════════════════════════
+-- SETTINGS TAB
+-- ═══════════════════════════════════════════════════════
+
+SettingsTab:CreateKeybind({
+    Name = "AimLock Key",
+    CurrentKeybind = "E",
+    HoldToInteract = false,
+    Flag = "Aim_LockKey",
+    Callback = function(Keybind)
+        Config.AimLock.LockKey = Keybind
     end
 })
 
--- // Keybind для AimLock (переключение по клавише)
-local aimKeybind = Enum.KeyCode.E
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == aimKeybind then
-        Settings.Aim.Enabled = not Settings.Aim.Enabled
-        FOVCircle.Visible = Settings.Aim.Enabled
-    end
-end)
-
--- // Настройка keybind через UI
-local KeybindSection = AimTab:CreateSection("Keybind Settings")
-
-local KeybindDropdown = AimTab:CreateDropdown({
-    Name = "AimLock Toggle Key",
-    Options = {"E", "Q", "F", "C", "V", "X", "Z", "T", "G", "H"},
-    CurrentOption = "E",
-    Flag = "Aim_Keybind",
-    Callback = function(Option)
-        aimKeybind = Enum.KeyCode[Option]
+SettingsTab:CreateButton({
+    Name = "Unload Script",
+    Callback = function()
+        ESPSystem.Pools.Boxes:Destroy()
+        ESPSystem.Pools.FilledBoxes:Destroy()
+        ESPSystem.Pools.Names:Destroy()
+        ESPSystem.Pools.Distances:Destroy()
+        ESPSystem.Pools.HealthBars:Destroy()
+        ESPSystem.Pools.HealthBarBackgrounds:Destroy()
+        ESPSystem.Pools.Tracers:Destroy()
+        if AimLockSystem.FOVCircle then
+            AimLockSystem.FOVCircle:Remove()
+        end
+        if AimLockSystem.TargetHighlight then
+            AimLockSystem.TargetHighlight:Remove()
+        end
+        Rayfield:Destroy()
     end
 })
 
--- // Уведомление
+-- ═══════════════════════════════════════════════════════
+-- INITIALIZATION
+-- ═══════════════════════════════════════════════════════
+
+ESPSystem:Init()
+AimLockSystem:Init()
+
 Rayfield:Notify({
-    Title = "Script Loaded",
-    Content = "ESP + AimLock v2 Ready!",
-    Duration = 3
+    Title = "PEDRO | ESP + AimLock",
+    Content = "System initialized successfully.",
+    Duration = 3,
+    Image = "check"
 })
+
+-- ═══════════════════════════════════════════════════════
+-- END OF SCRIPT
+-- ═══════════════════════════════════════════════════════
