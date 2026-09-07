@@ -1,6 +1,7 @@
 --[[
     Universal Aimbot + ESP
     GUI: Rayfield
+    Fixed Aimbot + FOV Circle + Name Toggle
     Compatible with Delta and most executors
 ]]
 
@@ -19,10 +20,11 @@ local Settings = {
     AimbotEnabled = false,
     AimbotKey = Enum.UserInputType.MouseButton2,
     AimPart = "Head",
-    Smoothness = 0.25,
+    Smoothness = 0.2,
     FOV = 180,
     WallCheck = false,
     TeamCheckAim = true,
+    ShowFOV = true,
 
     -- ESP
     ESPEnabled = false,
@@ -30,23 +32,49 @@ local Settings = {
     BoxESP = true,
     HealthESP = true,
     DistanceESP = true,
+    NameESP = true,
     ESPColor = Color3.fromRGB(255, 50, 50),
     TeamColor = Color3.fromRGB(50, 150, 255),
 }
 
+-- ====================== FOV CIRCLE ======================
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 64
+FOVCircle.Radius = Settings.FOV
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+FOVCircle.Transparency = 1
+
+RunService.RenderStepped:Connect(function()
+    local mousePos = UserInputService:GetMouseLocation()
+    FOVCircle.Position = mousePos
+    FOVCircle.Radius = Settings.FOV
+    FOVCircle.Visible = Settings.AimbotEnabled and Settings.ShowFOV
+end)
+
 -- ====================== AIMBOT ======================
 local function IsVisible(targetPart)
     if not Settings.WallCheck then return true end
+
     local origin = Camera.CFrame.Position
-    local direction = (targetPart.Position - origin).Unit * 500
-    local ray = Ray.new(origin, direction)
-    local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
-    return hit and hit:IsDescendantOf(targetPart.Parent)
+    local direction = (targetPart.Position - origin)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local result = workspace:Raycast(origin, direction, rayParams)
+    if result then
+        return result.Instance and result.Instance:IsDescendantOf(targetPart.Parent)
+    end
+    return true
 end
 
 local function GetClosestPlayer()
     local closest = nil
     local shortest = Settings.FOV
+    local mousePos = UserInputService:GetMouseLocation()
 
     for _, player in pairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
@@ -62,10 +90,12 @@ local function GetClosestPlayer()
         local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
         if not onScreen then continue end
 
-        local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-        if dist < shortest and IsVisible(part) then
-            shortest = dist
-            closest = part
+        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+        if dist < shortest then
+            if IsVisible(part) then
+                shortest = dist
+                closest = part
+            end
         end
     end
 
@@ -91,25 +121,24 @@ RunService.RenderStepped:Connect(function()
     if Settings.AimbotEnabled and aiming then
         local target = GetClosestPlayer()
         if target then
-            local goal = CFrame.new(Camera.CFrame.Position, target.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(goal, Settings.Smoothness)
+            local currentCF = Camera.CFrame
+            local targetCF = CFrame.new(currentCF.Position, target.Position)
+            Camera.CFrame = currentCF:Lerp(targetCF, Settings.Smoothness)
         end
     end
 end)
 
 -- ====================== ESP ======================
-local ESPFolder = Instance.new("Folder")
-ESPFolder.Name = "RayfieldESP"
-ESPFolder.Parent = game:GetService("CoreGui")
-
 local ESPObjects = {}
 
 local function RemoveESP(player)
     if ESPObjects[player] then
         for _, obj in pairs(ESPObjects[player]) do
-            if obj and obj.Destroy then
-                obj:Destroy()
-            end
+            pcall(function()
+                if obj and obj.Remove then
+                    obj:Remove()
+                end
+            end)
         end
         ESPObjects[player] = nil
     end
@@ -182,9 +211,13 @@ local function UpdateESP()
             continue
         end
 
-        local color = (player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team) and Settings.TeamColor or Settings.ESPColor
+        local color = Settings.ESPColor
+        if player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
+            color = Settings.TeamColor
+        end
 
-        local topPos, topOnScreen = Camera:WorldToViewportPoint((head and head.Position or root.Position + Vector3.new(0, 2.5, 0)))
+        local headPos = head and head.Position or (root.Position + Vector3.new(0, 2.5, 0))
+        local topPos, topOnScreen = Camera:WorldToViewportPoint(headPos)
         local bottomPos, bottomOnScreen = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
 
         if topOnScreen or bottomOnScreen then
@@ -202,10 +235,14 @@ local function UpdateESP()
             end
 
             -- Name
-            objects.Name.Text = player.Name
-            objects.Name.Position = Vector2.new(topPos.X, topPos.Y - 18)
-            objects.Name.Color = color
-            objects.Name.Visible = true
+            if Settings.NameESP then
+                objects.Name.Text = player.Name
+                objects.Name.Position = Vector2.new(topPos.X, topPos.Y - 18)
+                objects.Name.Color = color
+                objects.Name.Visible = true
+            else
+                objects.Name.Visible = false
+            end
 
             -- Health
             if Settings.HealthESP then
@@ -249,7 +286,7 @@ end
 local Window = Rayfield:CreateWindow({
     Name = "Aimbot + ESP",
     LoadingTitle = "Loading...",
-    LoadingSubtitle = "by Axion's girl",
+    LoadingSubtitle = "fixed version",
     ConfigurationSaving = {
         Enabled = false,
     },
@@ -268,12 +305,21 @@ AimTab:CreateToggle({
     end,
 })
 
+AimTab:CreateToggle({
+    Name = "Show FOV Circle",
+    CurrentValue = true,
+    Flag = "ShowFOV",
+    Callback = function(Value)
+        Settings.ShowFOV = Value
+    end,
+})
+
 AimTab:CreateSlider({
     Name = "Smoothness",
     Range = {0.05, 1},
     Increment = 0.01,
     Suffix = "",
-    CurrentValue = 0.25,
+    CurrentValue = 0.2,
     Flag = "Smoothness",
     Callback = function(Value)
         Settings.Smoothness = Value
@@ -289,6 +335,7 @@ AimTab:CreateSlider({
     Flag = "FOV",
     Callback = function(Value)
         Settings.FOV = Value
+        FOVCircle.Radius = Value
     end,
 })
 
@@ -313,10 +360,10 @@ AimTab:CreateToggle({
 AimTab:CreateDropdown({
     Name = "Aim Part",
     Options = {"Head", "HumanoidRootPart", "UpperTorso", "Torso"},
-    CurrentOption = "Head",
+    CurrentOption = {"Head"},
     Flag = "AimPart",
     Callback = function(Value)
-        Settings.AimPart = Value
+        Settings.AimPart = typeof(Value) == "table" and Value[1] or Value
     end,
 })
 
@@ -351,6 +398,15 @@ ESPTab:CreateToggle({
 })
 
 ESPTab:CreateToggle({
+    Name = "Names",
+    CurrentValue = true,
+    Flag = "NameESP",
+    Callback = function(Value)
+        Settings.NameESP = Value
+    end,
+})
+
+ESPTab:CreateToggle({
     Name = "Health",
     CurrentValue = true,
     Flag = "HealthESP",
@@ -377,6 +433,4 @@ ESPTab:CreateColorPicker({
     end,
 })
 
-Rayfield:LoadConfiguration()
-
-print("Aimbot + ESP loaded | Rayfield GUI")
+print("Aimbot + ESP loaded | FOV Circle + Name Toggle fixed")
