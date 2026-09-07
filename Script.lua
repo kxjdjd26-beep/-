@@ -1,68 +1,60 @@
--- SpeedX v3.0 — Fixed & Beautiful
--- Для Synapse X / Script-Ware / Krnl / Fluxus
+-- ================================
+--   SpeedHack + AntiCheat Bypass
+--   by: executor script
+-- ================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- ============ CONFIG ============
+-- ================================
+-- НАСТРОЙКИ
+-- ================================
 local Settings = {
+    Speed = 50,
     Enabled = false,
-    Speed = 50,            -- studs/sec, ползунок до 1000
-    AntiCheatBypass = true,
-    SmoothTeleport = true,
-    TeleportStep = 3,      -- шаг телепортации
-    RemoveHumanoid = true,
-    KeepCamera = true
+    BypassEnabled = false,
+    StepSize = 3,       -- размер одного шага телепортации (меньше = плавнее)
+    StepDelay = 0.01,   -- задержка между шагами
 }
 
--- ============ GUI ============
+-- ================================
+-- GUI
+-- ================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SpeedX"
-ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Name = "SpeedHackGUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = game:GetService("CoreGui")
 
--- Main frame
+-- Основное окно
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 250)
-MainFrame.Position = UDim2.new(0.5, -150, 0.35, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+MainFrame.Size = UDim2.new(0, 300, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
-MainFrame.Active = true
-MainFrame.Draggable = true
 
--- Corner
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = MainFrame
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
 
--- Stroke
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Color = Color3.fromRGB(255, 45, 85)
-UIStroke.Thickness = 2
-UIStroke.Transparency = 0.2
-UIStroke.Parent = MainFrame
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(100, 80, 200)
+MainStroke.Thickness = 1.5
+MainStroke.Parent = MainFrame
 
--- Gradient background
-local BGradient = Instance.new("UIGradient")
-BGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 20, 30)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 22))
-})
-BGradient.Rotation = 45
-BGradient.Parent = MainFrame
-
--- Title bar
+-- Градиент-заголовок
 local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 40)
-TitleBar.Position = UDim2.new(0, 0, 0, 0)
-TitleBar.BackgroundColor3 = Color3.fromRGB(255, 45, 85)
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 50)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 18, 50)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
 
@@ -70,380 +62,462 @@ local TitleCorner = Instance.new("UICorner")
 TitleCorner.CornerRadius = UDim.new(0, 12)
 TitleCorner.Parent = TitleBar
 
--- Нижнюю часть титульного бара делаем прямой
-local TitleBottom = Instance.new("Frame")
-TitleBottom.Size = UDim2.new(1, 0, 0, 20)
-TitleBottom.Position = UDim2.new(0, 0, 0, 20)
-TitleBottom.BackgroundColor3 = Color3.fromRGB(255, 45, 85)
-TitleBottom.BorderSizePixel = 0
-TitleBottom.Parent = TitleBar
+-- Нижняя часть заголовка (скрывает нижние углы)
+local TitleFix = Instance.new("Frame")
+TitleFix.Size = UDim2.new(1, 0, 0, 12)
+TitleFix.Position = UDim2.new(0, 0, 1, -12)
+TitleFix.BackgroundColor3 = Color3.fromRGB(25, 18, 50)
+TitleFix.BorderSizePixel = 0
+TitleFix.Parent = TitleBar
 
--- Title text
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 1, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "⚡ SPEEDX v3.0"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 18
-Title.Parent = TitleBar
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Text = "⚡ SpeedHack"
+TitleLabel.Size = UDim2.new(1, -60, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(200, 180, 255)
+TitleLabel.TextSize = 16
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
 
--- Toggle button
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Size = UDim2.new(1, -20, 0, 36)
-ToggleBtn.Position = UDim2.new(0, 10, 0, 50)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-ToggleBtn.BorderSizePixel = 0
-ToggleBtn.Text = "ВКЛЮЧИТЬ"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.TextSize = 15
-ToggleBtn.Parent = MainFrame
-ToggleBtn.AutoButtonColor = true
+local SubLabel = Instance.new("TextLabel")
+SubLabel.Text = "Anticheat Bypass Edition"
+SubLabel.Size = UDim2.new(1, -60, 0, 16)
+SubLabel.Position = UDim2.new(0, 15, 0, 28)
+SubLabel.BackgroundTransparency = 1
+SubLabel.TextColor3 = Color3.fromRGB(120, 100, 180)
+SubLabel.TextSize = 11
+SubLabel.Font = Enum.Font.Gotham
+SubLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubLabel.Parent = TitleBar
 
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 8)
-ToggleCorner.Parent = ToggleBtn
+-- Кнопка закрыть
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Text = "✕"
+CloseBtn.Size = UDim2.new(0, 32, 0, 32)
+CloseBtn.Position = UDim2.new(1, -42, 0, 9)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 14
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Parent = TitleBar
 
--- Speed label
-local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(1, -20, 0, 22)
-SpeedLabel.Position = UDim2.new(0, 10, 0, 96)
-SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Text = "Скорость: 50 studs/s"
-SpeedLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
-SpeedLabel.Font = Enum.Font.Gotham
-SpeedLabel.TextSize = 14
-SpeedLabel.Parent = MainFrame
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseBtn
 
--- Slider track
-local SliderTrack = Instance.new("Frame")
-SliderTrack.Size = UDim2.new(1, -20, 0, 8)
-SliderTrack.Position = UDim2.new(0, 10, 0, 124)
-SliderTrack.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-SliderTrack.BorderSizePixel = 0
-SliderTrack.Parent = MainFrame
-
-local TrackCorner = Instance.new("UICorner")
-TrackCorner.CornerRadius = UDim.new(0, 4)
-TrackCorner.Parent = SliderTrack
-
--- Fill
-local SliderFill = Instance.new("Frame")
-SliderFill.Size = UDim2.new(0.05, 0, 1, 0)
-SliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-SliderFill.BorderSizePixel = 0
-SliderFill.Parent = SliderTrack
-
-local FillCorner = Instance.new("UICorner")
-FillCorner.CornerRadius = UDim.new(0, 4)
-FillCorner.Parent = SliderFill
-
--- Handle
-local SliderHandle = Instance.new("TextButton")
-SliderHandle.Size = UDim2.new(0, 16, 0, 16)
-SliderHandle.Position = UDim2.new(0.05, -8, 0, -4)
-SliderHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-SliderHandle.BorderSizePixel = 0
-SliderHandle.Text = ""
-SliderHandle.AutoButtonColor = false
-SliderHandle.Parent = SliderTrack
-
-local HandleCorner = Instance.new("UICorner")
-HandleCorner.CornerRadius = UDim.new(0, 8)
-HandleCorner.Parent = SliderHandle
-
--- Slider logic
-local function UpdateSlider(value)
-    value = math.clamp(value, 0, 1)
-    SliderFill.Size = UDim2.new(value, 0, 1, 0)
-    SliderHandle.Position = UDim2.new(value, -8, 0, -4)
-    local speed = math.floor(value * 1000)
-    if speed < 1 then speed = 1 end
-    Settings.Speed = speed
-    SpeedLabel.Text = "Скорость: " .. speed .. " studs/s"
-end
-
-local function GetSliderValue()
-    return SliderFill.Size.X.Scale
-end
-
-local dragging = false
-
-SliderHandle.MouseButton1Down:Connect(function()
-    dragging = true
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
 end)
 
-SliderTrack.MouseButton1Down:Connect(function(x, y)
-    local relativeX = (x - SliderTrack.AbsolutePosition.X) / SliderTrack.AbsoluteSize.X
-    UpdateSlider(relativeX)
-    dragging = true
+-- Контент
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, 0, 1, -50)
+Content.Position = UDim2.new(0, 0, 0, 50)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
+
+local ContentLayout = Instance.new("UIListLayout")
+ContentLayout.Padding = UDim.new(0, 8)
+ContentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+ContentLayout.Parent = Content
+
+local ContentPadding = Instance.new("UIPadding")
+ContentPadding.PaddingTop = UDim.new(0, 12)
+ContentPadding.PaddingLeft = UDim.new(0, 12)
+ContentPadding.PaddingRight = UDim.new(0, 12)
+ContentPadding.Parent = Content
+
+-- Функция создания секции
+local function CreateSection(title)
+    local Section = Instance.new("Frame")
+    Section.Size = UDim2.new(1, 0, 0, 28)
+    Section.BackgroundTransparency = 1
+
+    local Line = Instance.new("Frame")
+    Line.Size = UDim2.new(1, 0, 0, 1)
+    Line.Position = UDim2.new(0, 0, 0.5, 0)
+    Line.BackgroundColor3 = Color3.fromRGB(60, 45, 100)
+    Line.BorderSizePixel = 0
+    Line.Parent = Section
+
+    local SLabel = Instance.new("TextLabel")
+    SLabel.Text = " " .. title .. " "
+    SLabel.Size = UDim2.new(0, 0, 1, 0)
+    SLabel.Position = UDim2.new(0, 10, 0, 0)
+    SLabel.AutomaticSize = Enum.AutomaticSize.X
+    SLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    SLabel.TextColor3 = Color3.fromRGB(120, 100, 180)
+    SLabel.TextSize = 11
+    SLabel.Font = Enum.Font.GothamBold
+    SLabel.Parent = Section
+
+    Section.Parent = Content
+    return Section
+end
+
+-- Функция создания переключателя
+local function CreateToggle(labelText, callback)
+    local Row = Instance.new("Frame")
+    Row.Size = UDim2.new(1, 0, 0, 36)
+    Row.BackgroundColor3 = Color3.fromRGB(22, 18, 38)
+    Row.BorderSizePixel = 0
+    Row.Parent = Content
+
+    local RowCorner = Instance.new("UICorner")
+    RowCorner.CornerRadius = UDim.new(0, 8)
+    RowCorner.Parent = Row
+
+    local Label = Instance.new("TextLabel")
+    Label.Text = labelText
+    Label.Size = UDim2.new(1, -60, 1, 0)
+    Label.Position = UDim2.new(0, 12, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.TextColor3 = Color3.fromRGB(220, 210, 255)
+    Label.TextSize = 13
+    Label.Font = Enum.Font.Gotham
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Row
+
+    local Toggle = Instance.new("Frame")
+    Toggle.Size = UDim2.new(0, 40, 0, 20)
+    Toggle.Position = UDim2.new(1, -50, 0.5, -10)
+    Toggle.BackgroundColor3 = Color3.fromRGB(50, 40, 80)
+    Toggle.BorderSizePixel = 0
+    Toggle.Parent = Row
+
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(1, 0)
+    ToggleCorner.Parent = Toggle
+
+    local Knob = Instance.new("Frame")
+    Knob.Size = UDim2.new(0, 16, 0, 16)
+    Knob.Position = UDim2.new(0, 2, 0.5, -8)
+    Knob.BackgroundColor3 = Color3.fromRGB(150, 130, 200)
+    Knob.BorderSizePixel = 0
+    Knob.Parent = Toggle
+
+    local KnobCorner = Instance.new("UICorner")
+    KnobCorner.CornerRadius = UDim.new(1, 0)
+    KnobCorner.Parent = Knob
+
+    local state = false
+
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 1, 0)
+    Btn.BackgroundTransparency = 1
+    Btn.Text = ""
+    Btn.Parent = Row
+
+    Btn.MouseButton1Click:Connect(function()
+        state = not state
+        local goal_knob = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+        local goal_color = state and Color3.fromRGB(80, 50, 180) or Color3.fromRGB(50, 40, 80)
+        local knob_color = state and Color3.fromRGB(180, 160, 255) or Color3.fromRGB(150, 130, 200)
+
+        TweenService:Create(Knob, TweenInfo.new(0.2), {Position = goal_knob, BackgroundColor3 = knob_color}):Play()
+        TweenService:Create(Toggle, TweenInfo.new(0.2), {BackgroundColor3 = goal_color}):Play()
+
+        callback(state)
+    end)
+
+    return Row
+end
+
+-- Функция слайдера
+local function CreateSlider(labelText, minV, maxV, defaultV, callback)
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, 0, 0, 60)
+    Container.BackgroundColor3 = Color3.fromRGB(22, 18, 38)
+    Container.BorderSizePixel = 0
+    Container.Parent = Content
+
+    local ContCorner = Instance.new("UICorner")
+    ContCorner.CornerRadius = UDim.new(0, 8)
+    ContCorner.Parent = Container
+
+    local LabelRow = Instance.new("Frame")
+    LabelRow.Size = UDim2.new(1, 0, 0, 28)
+    LabelRow.BackgroundTransparency = 1
+    LabelRow.Parent = Container
+
+    local SLabel = Instance.new("TextLabel")
+    SLabel.Text = labelText
+    SLabel.Size = UDim2.new(0.7, 0, 1, 0)
+    SLabel.Position = UDim2.new(0, 12, 0, 0)
+    SLabel.BackgroundTransparency = 1
+    SLabel.TextColor3 = Color3.fromRGB(220, 210, 255)
+    SLabel.TextSize = 13
+    SLabel.Font = Enum.Font.Gotham
+    SLabel.TextXAlignment = Enum.TextXAlignment.Left
+    SLabel.Parent = LabelRow
+
+    local ValLabel = Instance.new("TextLabel")
+    ValLabel.Text = tostring(defaultV)
+    ValLabel.Size = UDim2.new(0.3, -12, 1, 0)
+    ValLabel.Position = UDim2.new(0.7, 0, 0, 0)
+    ValLabel.BackgroundTransparency = 1
+    ValLabel.TextColor3 = Color3.fromRGB(140, 120, 220)
+    ValLabel.TextSize = 13
+    ValLabel.Font = Enum.Font.GothamBold
+    ValLabel.TextXAlignment = Enum.TextXAlignment.Right
+    ValLabel.Parent = LabelRow
+
+    local Track = Instance.new("Frame")
+    Track.Size = UDim2.new(1, -24, 0, 6)
+    Track.Position = UDim2.new(0, 12, 0, 38)
+    Track.BackgroundColor3 = Color3.fromRGB(40, 32, 70)
+    Track.BorderSizePixel = 0
+    Track.Parent = Container
+
+    local TrackCorner = Instance.new("UICorner")
+    TrackCorner.CornerRadius = UDim.new(1, 0)
+    TrackCorner.Parent = Track
+
+    local Fill = Instance.new("Frame")
+    Fill.Size = UDim2.new((defaultV - minV)/(maxV - minV), 0, 1, 0)
+    Fill.BackgroundColor3 = Color3.fromRGB(100, 70, 200)
+    Fill.BorderSizePixel = 0
+    Fill.Parent = Track
+
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    FillCorner.Parent = Fill
+
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 0, 32)
+    Btn.Position = UDim2.new(0, 0, 0, 24)
+    Btn.BackgroundTransparency = 1
+    Btn.Text = ""
+    Btn.Parent = Container
+
+    local dragging = false
+
+    local function update(input)
+        local trackPos = Track.AbsolutePosition.X
+        local trackSize = Track.AbsoluteSize.X
+        local rel = math.clamp((input.Position.X - trackPos) / trackSize, 0, 1)
+        local value = math.floor(minV + rel * (maxV - minV))
+        Fill.Size = UDim2.new(rel, 0, 1, 0)
+        ValLabel.Text = tostring(value)
+        callback(value)
+    end
+
+    Btn.MouseButton1Down:Connect(function() dragging = true end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            update(i)
+        end
+    end)
+    Btn.MouseButton1Down:Connect(function(x, y)
+        update({Position = Vector3.new(x, y, 0)})
+    end)
+
+    return Container
+end
+
+-- ================================
+-- UI ЭЛЕМЕНТЫ
+-- ================================
+
+CreateSection("SPEED HACK")
+CreateToggle("SpeedHack ON/OFF", function(state)
+    Settings.Enabled = state
+end)
+CreateSlider("Скорость", 1, 1000, 50, function(v)
+    Settings.Speed = v
 end)
 
-UserInputService.InputEnded:Connect(function(input)
+CreateSection("ANTICHEAT BYPASS")
+CreateToggle("Bypass Humanoid", function(state)
+    Settings.BypassEnabled = state
+end)
+
+CreateSection("ИНФОРМАЦИЯ")
+local InfoLabel = Instance.new("TextLabel")
+InfoLabel.Size = UDim2.new(1, 0, 0, 48)
+InfoLabel.BackgroundColor3 = Color3.fromRGB(18, 25, 18)
+InfoLabel.TextColor3 = Color3.fromRGB(100, 200, 120)
+InfoLabel.TextSize = 11
+InfoLabel.Font = Enum.Font.Gotham
+InfoLabel.Text = "Bypass: удаляет Humanoid,\nкамера остаётся на месте.\nSpeed: микро-телепортации."
+InfoLabel.TextWrapped = true
+InfoLabel.BorderSizePixel = 0
+InfoLabel.Parent = Content
+
+local InfoCorner = Instance.new("UICorner")
+InfoCorner.CornerRadius = UDim.new(0, 8)
+InfoCorner.Parent = InfoLabel
+
+-- ================================
+-- DRAG (перетаскивание окна)
+-- ================================
+local dragging, dragStart, startPos
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+TitleBar.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = false
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local relativeX = (input.Position.X - SliderTrack.AbsolutePosition.X) / SliderTrack.AbsoluteSize.X
-        UpdateSlider(relativeX)
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
     end
 end)
 
--- Initialize slider
-UpdateSlider(Settings.Speed / 1000)
+-- ================================
+-- ANTICHEAT BYPASS LOGIC
+-- ================================
+-- Сохраняем ссылку на камеру и CFrame до удаления
+local bypassActive = false
+local fakeRoot = nil
+local savedCameraCFrame = nil
 
--- Status label
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 20)
-StatusLabel.Position = UDim2.new(0, 10, 0, 145)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Статус: ВЫКЛ"
-StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.TextSize = 12
-StatusLabel.Parent = MainFrame
-
--- ============ FUNCTIONS ============
-local Humanoid = nil
-local RootPart = nil
-local CameraSaved = nil
-local OriginalHumanoidState = nil
-local SpeedConnection = nil
-local MoveAccumulator = 0
-
--- Сохраняем оригинальные значения
-local function SaveOriginalState()
+local function ApplyBypass()
     local character = LocalPlayer.Character
     if not character then return end
 
-    Humanoid = character:FindFirstChildOfClass("Humanoid")
-    RootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local hrp = character:FindFirstChild("HumanoidRootPart")
 
-    if Humanoid then
-        OriginalHumanoidState = {
-            WalkSpeed = Humanoid.WalkSpeed,
-            JumpPower = Humanoid.JumpPower,
-            HipHeight = Humanoid.HipHeight,
-            MaxHealth = Humanoid.MaxHealth,
-            Health = Humanoid.Health,
-            Parent = Humanoid.Parent,
-            Name = Humanoid.Name
-        }
-    end
+    if not humanoid or not hrp then return end
 
-    if Camera then
-        CameraSaved = {
-            CameraSubject = Camera.CameraSubject,
-            CameraType = Camera.CameraType,
-            FieldOfView = Camera.FieldOfView,
-            CFrame = Camera.CFrame,
-            Focus = Camera.Focus
-        }
-    end
+    -- Сохраняем subject камеры
+    savedCameraCFrame = Camera.CFrame
+
+    -- Создаём невидимый Part как anchor для камеры вместо HumanoidRootPart
+    fakeRoot = Instance.new("Part")
+    fakeRoot.Name = "FakeRoot"
+    fakeRoot.Size = Vector3.new(0.1, 0.1, 0.1)
+    fakeRoot.Transparency = 1
+    fakeRoot.CanCollide = false
+    fakeRoot.Anchored = true
+    fakeRoot.CFrame = hrp.CFrame
+    fakeRoot.Parent = workspace
+
+    -- Переключаем камеру на fakeRoot
+    Camera.CameraSubject = fakeRoot
+
+    -- Удаляем humanoid (обходит некоторые античиты)
+    humanoid:Destroy()
+
+    bypassActive = true
 end
 
--- Восстанавливаем оригинальные значения
-local function RestoreOriginalState()
+local function RemoveBypass()
     local character = LocalPlayer.Character
     if not character then return end
 
-    if Humanoid and not Humanoid:IsDescendantOf(character) then
-        local newHumanoid = Instance.new("Humanoid")
-        newHumanoid.Name = OriginalHumanoidState.Name
-        newHumanoid.WalkSpeed = OriginalHumanoidState.WalkSpeed
-        newHumanoid.JumpPower = OriginalHumanoidState.JumpPower
-        newHumanoid.HipHeight = OriginalHumanoidState.HipHeight
-        newHumanoid.MaxHealth = OriginalHumanoidState.MaxHealth
-        newHumanoid.Health = OriginalHumanoidState.Health
-        newHumanoid.Parent = character
-        Humanoid = newHumanoid
+    -- Восстанавливаем камеру на новый humanoid (если respawn)
+    if fakeRoot then
+        fakeRoot:Destroy()
+        fakeRoot = nil
     end
 
-    if Camera and CameraSaved then
-        Camera.CameraSubject = CameraSaved.CameraSubject or character:FindFirstChildOfClass("Humanoid")
-        Camera.CameraType = CameraSaved.CameraType or Enum.CameraType.Custom
-        Camera.FieldOfView = CameraSaved.FieldOfView or 70
-    end
-end
-
--- Anti-Cheat Bypass
-local function EnableAntiCheatBypass()
-    if not Settings.RemoveHumanoid then return end
-
-    SaveOriginalState()
-
-    local character = LocalPlayer.Character
-    if not character then return end
-
-    Humanoid = character:FindFirstChildOfClass("Humanoid")
-    RootPart = character:FindFirstChild("HumanoidRootPart")
-
-    if Humanoid then
-        if Camera and Camera.CameraSubject == Humanoid then
-            CameraSaved.CameraSubject = Humanoid
-        end
-
-        if Camera then
-            Camera.CameraSubject = character
-        end
-
-        Humanoid:Destroy()
-        Humanoid = nil
-
-        if Settings.KeepCamera and Camera then
-            local FakeHumanoid = Instance.new("Humanoid")
-            FakeHumanoid.Name = "CameraController"
-            FakeHumanoid.Parent = character
-            FakeHumanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-            FakeHumanoid.HealthDisplayType = Enum.HumanoidDisplayDistanceType.None
-            FakeHumanoid.NameDisplayDistance = 0
-            FakeHumanoid.HealthDisplayDistance = 0
-            FakeHumanoid.BreakJointsOnDeath = false
-            FakeHumanoid.RequiresNeck = false
-
-            Camera.CameraSubject = FakeHumanoid
-            Humanoid = FakeHumanoid
-        end
+    -- Пробуем найти humanoid (после respawn)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        Camera.CameraSubject = humanoid
     end
 
-    StatusLabel.Text = "Статус: Anti-Cheat Bypass АКТИВЕН"
-    StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    bypassActive = false
 end
 
-local function DisableAntiCheatBypass()
-    RestoreOriginalState()
-    StatusLabel.Text = "Статус: Anti-Cheat Bypass ВЫКЛ"
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-end
-
--- SpeedHack с плавной телепортацией и контролем скорости
-local function EnableSpeedHack()
-    if SpeedConnection then return end
-
-    SpeedConnection = RunService.Heartbeat:Connect(function(deltaTime)
-        if not Settings.Enabled then return end
-        if not LocalPlayer.Character then return end
-
-        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-
-        -- Определяем направление
-        local moveDirection = Vector3.zero
-
-        if Humanoid and Humanoid:IsA("Humanoid") and Humanoid.MoveDirection.Magnitude > 0 then
-            moveDirection = Humanoid.MoveDirection
-        else
-            local direction = Vector3.zero
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                direction += Camera.CFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                direction -= Camera.CFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                direction += Camera.CFrame.RightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                direction -= Camera.CFrame.RightVector
-            end
-            direction = Vector3.new(direction.X, 0, direction.Z)
-            if direction.Magnitude > 0 then
-                direction = direction.Unit
-            end
-            moveDirection = direction
-        end
-
-        if moveDirection.Magnitude > 0 then
-            moveDirection = Vector3.new(moveDirection.X, 0, moveDirection.Z).Unit
-
-            local stepDistance = Settings.TeleportStep
-            local speed = Settings.Speed
-            local stepsPerSecond = speed / stepDistance
-            local stepDelay = 1 / stepsPerSecond
-
-            MoveAccumulator += deltaTime
-
-            while MoveAccumulator >= stepDelay do
-                MoveAccumulator -= stepDelay
-
-                local newPosition = root.Position + moveDirection * stepDistance
-                local rayOrigin = root.Position + Vector3.new(0, 1, 0)
-                local rayParams = RaycastParams.new()
-                rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
-                rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-                local rayResult = workspace:Raycast(rayOrigin, moveDirection * stepDistance, rayParams)
-
-                if not rayResult then
-                    root.CFrame = root.CFrame + moveDirection * stepDistance
-                else
-                    local slideDirection = moveDirection - moveDirection:Dot(rayResult.Normal) * rayResult.Normal
-                    if slideDirection.Magnitude > 0.01 then
-                        root.CFrame = root.CFrame + slideDirection.Unit * (stepDistance * 0.5)
-                    end
-                end
-            end
-
-            -- Обновляем камеру
-            if Camera and Settings.KeepCamera then
-                local camOffset = Camera.CFrame.Position - root.Position
-                Camera.CFrame = CFrame.new(root.Position + camOffset)
-            end
-        end
-    end)
-end
-
-local function DisableSpeedHack()
-    if SpeedConnection then
-        SpeedConnection:Disconnect()
-        SpeedConnection = nil
+-- Следим за состоянием bypass
+RunService.Heartbeat:Connect(function()
+    if Settings.BypassEnabled and not bypassActive then
+        ApplyBypass()
+    elseif not Settings.BypassEnabled and bypassActive then
+        RemoveBypass()
     end
-    MoveAccumulator = 0
-end
 
--- ============ GUI HANDLERS ============
-ToggleBtn.MouseButton1Click:Connect(function()
-    Settings.Enabled = not Settings.Enabled
-
-    if Settings.Enabled then
-        ToggleBtn.Text = "ВЫКЛЮЧИТЬ"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 45, 85)
-        StatusLabel.Text = "Статус: ВКЛ"
-        StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-
-        EnableAntiCheatBypass()
-        EnableSpeedHack()
-    else
-        ToggleBtn.Text = "ВКЛЮЧИТЬ"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-        StatusLabel.Text = "Статус: ВЫКЛ"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-
-        DisableSpeedHack()
-        DisableAntiCheatBypass()
+    -- Синхронизируем fakeRoot с позицией персонажа (камера следит)
+    if bypassActive and fakeRoot then
+        local character = LocalPlayer.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            fakeRoot.CFrame = hrp.CFrame
+        end
     end
 end)
 
--- ============ CHARACTER RESPAWN HANDLER ============
-local function OnCharacterAdded(character)
-    if Settings.Enabled then
-        task.wait(0.5)
-        SaveOriginalState()
-        EnableAntiCheatBypass()
-        EnableSpeedHack()
+-- ================================
+-- SPEEDHACK LOGIC (микро-телепортации)
+-- ================================
+local isStepping = false
+
+local function GetMoveDirection()
+    local moveDir = Vector3.new(0, 0, 0)
+    local camCF = Camera.CFrame
+    local right = camCF.RightVector
+    local fwd = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + fwd end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - fwd end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Vector3.new(right.X, 0, right.Z) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Vector3.new(right.X, 0, right.Z) end
+
+    if moveDir.Magnitude > 0 then
+        moveDir = moveDir.Unit
     end
+    return moveDir
 end
 
-LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+RunService.Heartbeat:Connect(function(dt)
+    if not Settings.Enabled then return end
 
--- ============ CLEANUP ============
-script.Destroying:Connect(function()
-    DisableSpeedHack()
-    DisableAntiCheatBypass()
-    ScreenGui:Destroy()
+    local character = LocalPlayer.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local dir = GetMoveDirection()
+    if dir.Magnitude == 0 then return end
+
+    -- Скорость в единицах/сек → смещение за кадр
+    local speed = Settings.Speed
+    local distance = speed * dt
+
+    -- Разбиваем на мелкие шаги для плавности
+    local steps = math.max(1, math.floor(distance / Settings.StepSize))
+    local stepDist = distance / steps
+
+    for i = 1, steps do
+        hrp.CFrame = hrp.CFrame + dir * stepDist
+        -- Небольшая пауза каждые несколько шагов
+        if i % 5 == 0 then
+            RunService.Heartbeat:Wait()
+        end
+    end
 end)
 
-print("[SpeedX] v3.0 загружен. Тяни ползунок — лети.")
+-- ================================
+-- RESPAWN — восстановление
+-- ================================
+LocalPlayer.CharacterAdded:Connect(function(character)
+    bypassActive = false
+    fakeRoot = nil
+    wait(1) -- ждём загрузки персонажа
+
+    if Settings.BypassEnabled then
+        ApplyBypass()
+    end
+end)
+
+print("[SpeedHack] GUI загружен. Используй меню для управления.")
