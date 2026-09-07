@@ -45,9 +45,9 @@ local Config = {
 
     -- Aimlock
     AIM_Enabled       = false,
-    AIM_FOV           = 120,          -- radius in pixels
+    AIM_FOV           = 120,
     AIM_ShowFOV       = true,
-    AIM_Smoothness    = 0.15,         -- 0.05 snappy → 1.0 slow
+    AIM_Smoothness    = 0.15,
     AIM_TargetPart    = "Head",
     AIM_TeamCheck     = true,
     AIM_HoldKey       = Enum.UserInputType.MouseButton2,
@@ -67,7 +67,7 @@ local LocalPlayer      = Players.LocalPlayer
 --           ESP DRAWING POOL
 -- ══════════════════════════════════════════
 
-local ESPObjects = {}   -- [player] = { Box, Name, Health, Dist, Tracer }
+local ESPObjects = {}
 
 local function NewDraw(type, props)
     local d = Drawing.new(type)
@@ -115,7 +115,6 @@ local function RemoveESP(player)
     end
 end
 
--- Init existing players
 for _, p in ipairs(Players:GetPlayers()) do
     if p ~= LocalPlayer then CreateESP(p) end
 end
@@ -125,16 +124,16 @@ end)
 Players.PlayerRemoving:Connect(RemoveESP)
 
 -- ══════════════════════════════════════════
---           FOV CIRCLE (Aimlock)
+--           FOV CIRCLE
 -- ══════════════════════════════════════════
 
 local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible        = false
-FOVCircle.Radius         = Config.AIM_FOV
-FOVCircle.Color          = Color3.fromRGB(255, 255, 255)
-FOVCircle.Thickness      = 1
-FOVCircle.Filled         = false
-FOVCircle.NumSides       = 64
+FOVCircle.Visible   = false
+FOVCircle.Radius    = Config.AIM_FOV
+FOVCircle.Color     = Color3.fromRGB(255, 255, 255)
+FOVCircle.Thickness = 1
+FOVCircle.Filled    = false
+FOVCircle.NumSides  = 64
 
 local ViewportCenter = Vector2.new(
     Camera.ViewportSize.X / 2,
@@ -155,8 +154,8 @@ end)
 local function GetRootAndHRP(player)
     local char = player.Character
     if not char then return nil, nil end
-    local hrp  = char:FindFirstChild("HumanoidRootPart")
-    local hum  = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
     return hrp, hum
 end
 
@@ -171,7 +170,6 @@ local function WorldToScreen(pos)
 end
 
 local function GetBoundingBox(character)
-    -- Build a screen-space bounding box from the character's parts
     local minX, minY =  math.huge,  math.huge
     local maxX, maxY = -math.huge, -math.huge
     local anyOnScreen = false
@@ -179,8 +177,8 @@ local function GetBoundingBox(character)
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
             local corners = {
-                part.CFrame * CFrame.new( part.Size/2),
-                part.CFrame * CFrame.new(-part.Size/2),
+                part.CFrame * CFrame.new( part.Size / 2),
+                part.CFrame * CFrame.new(-part.Size / 2),
                 part.CFrame * CFrame.new(
                      part.Size.X/2, -part.Size.Y/2,  part.Size.Z/2),
                 part.CFrame * CFrame.new(
@@ -207,8 +205,8 @@ end
 -- ══════════════════════════════════════════
 
 local function GetClosestTarget()
-    local bestPlayer  = nil
-    local bestDist    = Config.AIM_FOV   -- pixels
+    local bestPlayer = nil
+    local bestDist   = Config.AIM_FOV
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
@@ -238,7 +236,7 @@ local function GetClosestTarget()
 end
 
 -- ══════════════════════════════════════════
---           MAIN RENDER LOOP
+--           INPUT HANDLING
 -- ══════════════════════════════════════════
 
 local AimHeld = false
@@ -255,14 +253,18 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
+-- ══════════════════════════════════════════
+--           MAIN RENDER LOOP
+-- ══════════════════════════════════════════
+
 RunService.RenderStepped:Connect(function()
 
-    -- ── FOV Circle always centered ──────────────────
+    -- ── FOV Circle ──────────────────────────────────
     FOVCircle.Position = ViewportCenter
     FOVCircle.Radius   = Config.AIM_FOV
     FOVCircle.Visible  = Config.AIM_Enabled and Config.AIM_ShowFOV
 
-    -- ── Aimlock ─────────────────────────────────────
+    -- ── Aimlock (Camera CFrame lerp) ────────────────
     if Config.AIM_Enabled and AimHeld then
         local target = GetClosestTarget()
         if target then
@@ -272,11 +274,13 @@ RunService.RenderStepped:Connect(function()
                 or char:FindFirstChild("HumanoidRootPart")
             )
             if part then
-                local sp = WorldToScreen(part.Position)
-                -- Smooth camera push toward target
-                local delta = (sp - ViewportCenter) * Config.AIM_Smoothness
-                -- mousemoverel is executor-provided (Synapse / KRNL / etc.)
-                mousemoverel(delta.X, delta.Y)
+                local targetPos = part.Position
+                local camCF     = Camera.CFrame
+                local direction = (targetPos - camCF.Position).Unit
+                local goalCF    = CFrame.new(camCF.Position, camCF.Position + direction)
+
+                -- Плавный lerp камеры на цель
+                Camera.CFrame = camCF:Lerp(goalCF, Config.AIM_Smoothness)
             end
         end
     end
@@ -290,7 +294,7 @@ RunService.RenderStepped:Connect(function()
             local hrp, hum = GetRootAndHRP(player)
 
             if char and hrp and hum and hum.Health > 0 then
-                local camPos = Camera.CFrame.Position
+                local camPos    = Camera.CFrame.Position
                 local worldDist = (hrp.Position - camPos).Magnitude
 
                 if worldDist <= Config.ESP_MaxDist then
@@ -304,34 +308,33 @@ RunService.RenderStepped:Connect(function()
                             local w = maxX - minX
                             local h = maxY - minY
 
-                            -- ── Box ──────────────────────────────
+                            -- Box
                             if Config.ESP_Boxes then
-                                draws.Box.Visible   = true
-                                draws.Box.Color     = Config.ESP_BoxColor
-                                draws.Box.Position  = Vector2.new(minX, minY)
-                                draws.Box.Size      = Vector2.new(w, h)
+                                draws.Box.Visible  = true
+                                draws.Box.Color    = Config.ESP_BoxColor
+                                draws.Box.Position = Vector2.new(minX, minY)
+                                draws.Box.Size     = Vector2.new(w, h)
                             else
                                 draws.Box.Visible = false
                             end
 
-                            -- ── Name ─────────────────────────────
+                            -- Name
                             if Config.ESP_Names then
-                                draws.Name.Visible   = true
-                                draws.Name.Color     = Config.ESP_NameColor
-                                draws.Name.Text      = player.Name
-                                draws.Name.Position  = Vector2.new(
-                                    minX + w/2, minY - 18)
+                                draws.Name.Visible  = true
+                                draws.Name.Color    = Config.ESP_NameColor
+                                draws.Name.Text     = player.Name
+                                draws.Name.Position = Vector2.new(minX + w/2, minY - 18)
                             else
                                 draws.Name.Visible = false
                             end
 
-                            -- ── Health bar ───────────────────────
+                            -- Health bar
                             if Config.ESP_Health then
-                                local maxHP  = hum.MaxHealth
-                                local curHP  = hum.Health
-                                local ratio  = math.clamp(curHP/maxHP, 0, 1)
-                                local barH   = h * ratio
-                                local barX   = minX - 8
+                                local maxHP = hum.MaxHealth
+                                local curHP = hum.Health
+                                local ratio = math.clamp(curHP / maxHP, 0, 1)
+                                local barH  = h * ratio
+                                local barX  = minX - 8
 
                                 draws.HealthBG.Visible  = true
                                 draws.HealthBG.Position = Vector2.new(barX - 2, minY)
@@ -339,7 +342,7 @@ RunService.RenderStepped:Connect(function()
 
                                 draws.Health.Visible    = true
                                 draws.Health.Color      = Color3.fromRGB(
-                                    255 * (1-ratio), 255 * ratio, 0)
+                                    255 * (1 - ratio), 255 * ratio, 0)
                                 draws.Health.Position   = Vector2.new(
                                     barX - 2, minY + (h - barH))
                                 draws.Health.Size       = Vector2.new(5, barH)
@@ -348,10 +351,10 @@ RunService.RenderStepped:Connect(function()
                                 draws.HealthBG.Visible = false
                             end
 
-                            -- ── Distance ─────────────────────────
+                            -- Distance
                             if Config.ESP_Distance then
                                 draws.Dist.Visible  = true
-                                draws.Dist.Color    = Color3.fromRGB(200,200,200)
+                                draws.Dist.Color    = Color3.fromRGB(200, 200, 200)
                                 draws.Dist.Text     = string.format(
                                     "[%dm]", math.floor(worldDist))
                                 draws.Dist.Position = Vector2.new(
@@ -360,7 +363,7 @@ RunService.RenderStepped:Connect(function()
                                 draws.Dist.Visible = false
                             end
 
-                            -- ── Tracer ───────────────────────────
+                            -- Tracer
                             if Config.ESP_Tracers then
                                 local hrpSP = WorldToScreen(hrp.Position)
                                 draws.Tracer.Visible = true
@@ -368,7 +371,7 @@ RunService.RenderStepped:Connect(function()
                                 draws.Tracer.From    = Vector2.new(
                                     ViewportCenter.X,
                                     Camera.ViewportSize.Y)
-                                draws.Tracer.To      = hrpSP
+                                draws.Tracer.To = hrpSP
                             else
                                 draws.Tracer.Visible = false
                             end
@@ -378,7 +381,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- Hide all if not visible
         if not visible then
             for _, d in pairs(draws) do
                 d.Visible = false
@@ -486,7 +488,7 @@ TabAim:CreateSlider({
 
 TabAim:CreateSlider({
     Name = "Smoothness (lower = snappier)",
-    Range = {1, 100},          -- mapped /100 inside
+    Range = {1, 100},
     Increment = 1,
     CurrentValue = Config.AIM_Smoothness * 100,
     Callback = function(v) Config.AIM_Smoothness = v / 100 end
@@ -505,13 +507,10 @@ TabAim:CreateKeybind({
     CurrentKeybind = "Q",
     HoldToInteract = false,
     Callback = function(key)
-        -- Rayfield returns string key name; map to UserInputType or Enum.KeyCode
-        -- For mouse buttons use the toggle approach above; for keys:
         local ok, kc = pcall(function()
             return Enum.KeyCode[key]
         end)
         if ok and kc then
-            -- Rebind AimHeld to KeyCode
             UserInputService.InputBegan:Connect(function(input, gp)
                 if gp then return end
                 if input.KeyCode == kc then AimHeld = true end
@@ -540,7 +539,6 @@ TabCfg:CreateButton({
 TabCfg:CreateButton({
     Name = "Destroy GUI",
     Callback = function()
-        -- Cleanup all drawings
         for player, _ in pairs(ESPObjects) do RemoveESP(player) end
         FOVCircle:Remove()
         Rayfield:Destroy()
